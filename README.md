@@ -1,6 +1,6 @@
 <img width="1024" height="1024" alt="thoth_vec" src="https://github.com/user-attachments/assets/ae93d5af-1454-40ee-b6b4-2f7f1d8c3396" />
 
-# Thoth 🐒 - Traffic Harvesting & Observation Toolkit for HTTP
+# T.H.O.T.H 🐒 - Traffic Harvesting & Observation Toolkit for HTTP
 
 **See what a website does behind the scenes.** Thoth records the network traffic
 while you click around a site, then gives you a clear report of the API calls it
