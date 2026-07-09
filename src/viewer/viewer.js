@@ -8,7 +8,7 @@
 import { getSession, saveSession } from "../lib/storage.js";
 import { buildReport, renderHtml } from "../engine/report.js";
 import { exportReport, showInFolder } from "../lib/exporter.js";
-import { generateNarrative, getProviderInfo } from "../llm/provider.js";
+import { generateNarrative, getProviderInfo, disposeLocal } from "../llm/provider.js";
 
 const reportEl = document.getElementById("report");
 const exportBtn = document.getElementById("export");
@@ -25,6 +25,9 @@ let lastDownloadId = null;
 
 backEl.href = chrome.runtime.getURL("src/dashboard/dashboard.html");
 settingsBtn.addEventListener("click", () => chrome.runtime.openOptionsPage());
+
+// Free the warm on-device model session when this tab goes away.
+window.addEventListener("pagehide", () => disposeLocal());
 
 init();
 

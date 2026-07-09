@@ -1,16 +1,20 @@
-// replay.js  — point F: per-call replayability rating
+// replay.js  — point F: per-call outcome + replayability rating
 // ---------------------------------------------------------------------------
-// Rates how easily each call can be reproduced outside the browser, derived
-// entirely from the provenance graph. The point is to set expectations right in
-// the report instead of burying them in a caveat nobody reads.
+// The traffic light reflects two things, in priority order:
 //
-//   🟢 green  "static"        consumes no secrets — copy the curl and run it.
-//   🟡 amber  "session-bound" consumes a cookie/token whose origin we OBSERVED
-//                             (reproducible by replaying the earlier call, but
-//                             it will expire / rotate).
-//   🔴 red    "blocked"       consumes a token whose origin was NOT observed
-//                             (set before recording, or computed client-side) —
-//                             you can't reproduce the input from captured data.
+//   🔴 red    "failed"        the request itself did not succeed — a network
+//                             error, or an HTTP >= 400 response. Replaying it
+//                             as-is just reproduces the failure.
+//   🟢 green  "static"        succeeded and consumes no secrets — copy & run.
+//   🟡 amber  "session-bound" succeeded but sends a cookie/token. The captured
+//                             values let you replay it now; they expire (and if
+//                             a token's origin wasn't observed, you can't
+//                             regenerate it without re-recording).
+//
+// Note: a successful request is NEVER red. HTTP status is the success signal —
+// which isn't perfect (a server can return 200 with an error in the body), but
+// it keeps the red light meaning "this didn't work" rather than "hard to
+// replay", which was the confusing behavior before.
 // ---------------------------------------------------------------------------
 
 /**
@@ -19,48 +23,47 @@
  * @returns { level: "green"|"amber"|"red", label, reasons: string[] }
  */
 export function rateReplayability(entry, provenance) {
-  // Which traced secrets does THIS call send?
-  const consumed = provenance.filter((p) => p.consumers.includes(entry.order));
+  // 1. Did the request fail? That — not token provenance — is what red means.
+  const status = entry.status;
+  const httpError = typeof status === "number" && status >= 400;
+  if (entry.failed || httpError) {
+    return {
+      level: "red",
+      label: entry.failed ? "Failed" : `Failed · HTTP ${status}`,
+      reasons: [
+        entry.failed
+          ? `The request did not complete${entry.errorText ? ` (${entry.errorText})` : ""}.`
+          : `The server returned HTTP ${status}, so the call failed. Replaying it as-is reproduces the same error.`,
+      ],
+    };
+  }
 
+  // 2. Succeeded — which traced secrets does it send?
+  const consumed = provenance.filter((p) => p.consumers.includes(entry.order));
   if (consumed.length === 0) {
     return {
       level: "green",
       label: "Static",
-      reasons: ["Consumes no auth, cookie, or token inputs — copy the curl and run it as-is."],
+      reasons: ["Consumes no auth, cookie, or token inputs — copy the snippet and run it as-is."],
     };
   }
 
-  const reasons = [];
-  let anyBlocked = false;
-
-  for (const p of consumed) {
+  // 3. Succeeded but session-bound: the captured values replay now, but expire.
+  const reasons = consumed.map((p) => {
     const what = describe(p);
-
     if (!p.origin) {
-      anyBlocked = true;
-      reasons.push(
-        `Depends on ${what}, whose origin was not observed in this session ` +
-          `(set before recording began, or computed client-side). You'll need ` +
-          `to record the step that produces it, or reproduce it by hand.`
-      );
-    } else if (p.kind === "cookie") {
-      reasons.push(
-        `Depends on ${what}, set via ${originText(p.origin)} — session-bound and ` +
-          `will expire. Replay that request first to obtain a fresh cookie.`
-      );
-    } else {
-      reasons.push(
-        `Depends on ${what}, obtained from ${originText(p.origin)} — reproduce ` +
-          `that call first; the token may expire.`
+      return (
+        `Uses ${what}. Its origin wasn't observed this session, so the captured ` +
+        `value works until it expires — you can't regenerate it from what was recorded.`
       );
     }
-  }
+    if (p.kind === "cookie") {
+      return `Uses ${what}, set via ${originText(p.origin)} — session-bound; replay that request for a fresh cookie.`;
+    }
+    return `Uses ${what}, obtained from ${originText(p.origin)} — reproduce that call for a fresh token.`;
+  });
 
-  return {
-    level: anyBlocked ? "red" : "amber",
-    label: anyBlocked ? "Blocked" : "Session-bound",
-    reasons,
-  };
+  return { level: "amber", label: "Session-bound", reasons };
 }
 
 function describe(p) {

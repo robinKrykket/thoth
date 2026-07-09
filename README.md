@@ -31,12 +31,12 @@ No account, no setup, no build step.
 Each API call shows its method, URL, the headers it used, its request body, and a
 **replayability** light:
 
-- 🟢 **Static** — no login required; copy and run it as-is.
-- 🟡 **Session-bound** — needs a token or cookie that Thoth watched get created
-  earlier in the session. Reproducible, but it will expire.
-- 🔴 **Blocked** — needs a token whose origin Thoth never saw (it was set before you
-  started recording, or generated inside the page). You'd need to capture the step
-  that creates it.
+- 🟢 **Static** — succeeded and needs no login; copy and run it as-is.
+- 🟡 **Session-bound** — succeeded, but it sends a token or cookie. The captured
+  values let you replay it now; they expire (and if Thoth didn't see where a token
+  came from, you can't regenerate it without re-recording).
+- 🔴 **Failed** — the request itself didn't succeed (a network error or an HTTP
+  4xx/5xx response). Replaying it as-is reproduces the same failure.
 
 An **Authentication & tokens** section traces each token back to where it came from.
 
@@ -81,6 +81,11 @@ Pick the engine in **⚙ Settings**:
 
 ## Good to know
 
+- The traffic light judges success by HTTP status. A server can still return
+  **200 with an error in the body** (a failed login often re-renders the page at
+  200), so a 🟢/🟡 call isn't a guarantee the action worked — check the response.
+- A successful POST often shows status **302** — that's the normal redirect to a
+  success page, not an error.
 - Very large or binary responses (file downloads, images) aren't analyzed.
 - If the page scrambled a token (hashed or re-signed it) before using it, Thoth
   honestly reports the origin as *not observed* instead of guessing.

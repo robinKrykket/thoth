@@ -44,8 +44,39 @@ export async function availability() {
   }
 }
 
+// The model *download* is separate from a *session*: Chrome fetches Gemini Nano
+// to disk once and caches it across restarts — create() never re-downloads it.
+// What used to churn was the session (which loads the model into memory). We now
+// keep ONE warm session per page and reuse it, so repeated summaries in a tab
+// don't rebuild it. It's freed on page unload via dispose().
+let warmSession = null;
+let warmSystemPrompt = null;
+
+async function getWarmSession(d, systemPrompt, onStatus) {
+  if (warmSession && warmSystemPrompt === systemPrompt) return warmSession;
+  dispose(); // nothing cached, or the system prompt changed — rebuild
+
+  // downloadprogress only fires when Chrome actually needs to fetch the model
+  // (first-ever use, or a component update). It's silent once cached on disk.
+  const monitor = (m) => {
+    m.addEventListener("downloadprogress", (e) => {
+      const pct = e.total ? Math.round((e.loaded / e.total) * 100) : Math.round((e.loaded || 0) * 100);
+      onStatus && onStatus(`Preparing on-device model… ${pct}%`);
+    });
+  };
+
+  warmSession =
+    d.style === "modern"
+      ? await d.api.create({ initialPrompts: [{ role: "system", content: systemPrompt }], monitor })
+      : await d.api.create({ systemPrompt, monitor });
+  warmSystemPrompt = systemPrompt;
+  return warmSession;
+}
+
 /**
- * Create a session, run one prompt, and tear it down. Returns the model's text.
+ * Run one prompt and return the model's text, reusing the warm session. Each
+ * call runs on a fresh clone (when supported) so summaries stay independent
+ * while sharing the already-loaded model.
  * @param systemPrompt  standing instructions for the model
  * @param userText      the (compact, redacted) digest
  * @param onStatus      optional (msg:string) => void for progress updates
@@ -54,31 +85,54 @@ export async function run(systemPrompt, userText, { onStatus } = {}) {
   const d = detect();
   if (!d) throw new Error("Chrome's built-in AI (Prompt API) is not available here.");
 
-  // Some Chrome versions download the model on first create(); surface progress.
-  const monitor = (m) => {
-    m.addEventListener("downloadprogress", (e) => {
-      const pct = e.total ? Math.round((e.loaded / e.total) * 100) : Math.round((e.loaded || 0) * 100);
-      onStatus && onStatus(`Downloading on-device model… ${pct}%`);
-    });
-  };
-
-  const session =
-    d.style === "modern"
-      ? await d.api.create({ initialPrompts: [{ role: "system", content: systemPrompt }], monitor })
-      : await d.api.create({ systemPrompt, monitor });
-
   try {
+    const base = await getWarmSession(d, systemPrompt, onStatus);
     onStatus && onStatus("Generating…");
-    // Some Chrome builds leave session.prompt() pending forever after the model
-    // downloads. Cap it so the UI fails clearly instead of hanging on "Generating…".
-    return await withTimeout(session.prompt(userText), PROMPT_TIMEOUT_MS);
-  } finally {
+
+    // A clone reuses the loaded model but starts with a clean context (no bleed
+    // between summaries). Fall back to the base session if clone() is unsupported.
+    let convo = base;
+    let disposable = false;
+    if (typeof base.clone === "function") {
+      try {
+        convo = await base.clone();
+        disposable = true;
+      } catch (_) {
+        convo = base;
+      }
+    }
+
     try {
-      session.destroy && session.destroy();
+      // Some Chrome builds leave prompt() pending forever; cap it so the UI
+      // fails clearly instead of hanging on "Generating…".
+      return await withTimeout(convo.prompt(userText), PROMPT_TIMEOUT_MS);
+    } finally {
+      if (disposable) {
+        try {
+          convo.destroy && convo.destroy();
+        } catch (_) {
+          /* best effort */
+        }
+      }
+    }
+  } catch (e) {
+    // Drop the (possibly stale/broken) warm session so a retry rebuilds it.
+    dispose();
+    throw e;
+  }
+}
+
+/** Release the warm session and free the model from memory (call on page unload). */
+export function dispose() {
+  if (warmSession) {
+    try {
+      warmSession.destroy && warmSession.destroy();
     } catch (_) {
       /* best effort */
     }
   }
+  warmSession = null;
+  warmSystemPrompt = null;
 }
 
 const PROMPT_TIMEOUT_MS = 90_000;

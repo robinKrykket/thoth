@@ -122,7 +122,7 @@ export function renderMarkdown(report, narrative) {
   out.push(`- **Captured:** ${meta.totalEntries} requests, ${meta.apiCallCount} API calls`);
   out.push(`- **Request types:** ${typeCountsText(typeCounts)}`);
   out.push(
-    `- **Replayability:** 🟢 ${summary.green} static · 🟡 ${summary.amber} session-bound · 🔴 ${summary.red} blocked`
+    `- **Replayability:** 🟢 ${summary.green} static · 🟡 ${summary.amber} session-bound · 🔴 ${summary.red} failed`
   );
   out.push("");
 
@@ -280,7 +280,7 @@ export function renderHtml(report, narrative) {
       <div class="tally">
         <span class="badge badge-green">🟢 ${summary.green} static</span>
         <span class="badge badge-amber">🟡 ${summary.amber} session-bound</span>
-        <span class="badge badge-red">🔴 ${summary.red} blocked</span>
+        <span class="badge badge-red">🔴 ${summary.red} failed</span>
       </div>
     </header>
 

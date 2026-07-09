@@ -15,6 +15,9 @@ import { run as remoteRun } from "./remote.js";
 import { buildDigest } from "./digest.js";
 import { getSettings } from "../lib/settings.js";
 
+// Re-exported so pages can free the warm on-device session on unload.
+export { dispose as disposeLocal } from "./local.js";
+
 const SYSTEM_PROMPT = [
   "You are a precise technical writer documenting reverse-engineered backend API traffic.",
   "Write a short briefing (2-4 short paragraphs) for a developer who wants to reproduce these calls outside the browser.",

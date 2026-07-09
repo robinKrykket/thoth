@@ -21,6 +21,7 @@
 import { saveSession } from "../lib/storage.js";
 import { callAnthropic } from "../llm/anthropic.js";
 import { getSettings } from "../lib/settings.js";
+import { applyNetworkEvent, finalizeSession, currentEntry } from "./capture.js";
 
 // Don't try to store enormous or binary response bodies. 2 MB of text is plenty
 // to find a token in; anything larger is almost certainly a file download.
@@ -51,12 +52,14 @@ async function startRecording() {
   recording = {
     tabId: tab.id,
     seq: 0,
+    reqIndex: {}, // requestId -> current entry (the active redirect hop)
     session: {
       id: crypto.randomUUID(),
       startedAt: Date.now(),
       url: tab.url,
       title: tab.title,
-      // requestId -> entry, converted to a sorted array when we finalize.
+      // order -> entry (multiple redirect hops per requestId can coexist);
+      // converted to a sorted array when we finalize.
       entries: {},
       htmlSnapshots: [],
     },
@@ -103,92 +106,25 @@ async function stopRecording() {
   return finalized.id;
 }
 
-/** Convert the requestId->entry map into a clean, order-sorted array. */
-function finalizeSession(session) {
-  const entries = Object.values(session.entries).sort(
-    (a, b) => a.order - b.order
-  );
-  return { ...session, entries };
-}
-
 // ===========================================================================
 // CDP event handling
 // ===========================================================================
-
-// Get-or-create the entry for a requestId. Events can arrive out of order (e.g.
-// requestWillBeSentExtraInfo sometimes precedes requestWillBeSent), so we lazily
-// create a stub and fill it in as events come.
-function entryFor(requestId) {
-  const entries = recording.session.entries;
-  if (!entries[requestId]) {
-    entries[requestId] = { requestId, order: recording.seq++ };
-  }
-  return entries[requestId];
-}
 
 async function onDebuggerEvent(source, method, params) {
   // Ignore anything not from the tab we're actively recording.
   if (!recording || source.tabId !== recording.tabId) return;
 
-  switch (method) {
-    case "Network.requestWillBeSent": {
-      const e = entryFor(params.requestId);
-      e.url = params.request.url;
-      e.method = params.request.method;
-      e.requestHeaders = params.request.headers || {};
-      e.postData = params.request.postData || null;
-      e.hasPostData = !!params.request.hasPostData;
-      e.type = params.type || e.type || "Other";
-      e.initiator = params.initiator || null;
-      e.wallTime = params.wallTime || null;
-      // A redirect reuses the requestId; note it but keep the latest request.
-      if (params.redirectResponse) e.redirected = true;
-      break;
-    }
-
-    // The "extra info" events carry the REAL on-the-wire headers, including
-    // Cookie / Authorization that the basic event may omit. These are what we
-    // trust for secret detection.
-    case "Network.requestWillBeSentExtraInfo": {
-      const e = entryFor(params.requestId);
-      e.requestHeadersExtra = params.headers || {};
-      break;
-    }
-
-    case "Network.responseReceived": {
-      const e = entryFor(params.requestId);
-      const r = params.response || {};
-      e.status = r.status;
-      e.statusText = r.statusText;
-      e.mimeType = r.mimeType;
-      e.responseHeaders = r.headers || {};
-      if (params.type) e.type = params.type;
-      break;
-    }
-
-    case "Network.responseReceivedExtraInfo": {
-      const e = entryFor(params.requestId);
-      e.responseHeadersExtra = params.headers || {};
-      break;
-    }
-
-    case "Network.loadingFinished": {
-      // Now that the body is complete, pull it before it can be evicted.
-      await captureResponseBody(params.requestId);
-      break;
-    }
-
-    case "Network.loadingFailed": {
-      const e = entryFor(params.requestId);
-      e.failed = true;
-      e.errorText = params.errorText;
-      break;
-    }
+  // loadingFinished needs the live debugger to fetch the response body;
+  // every other event is a pure buffer update handled by capture.js.
+  if (method === "Network.loadingFinished") {
+    await captureResponseBody(params.requestId);
+    return;
   }
+  applyNetworkEvent(recording, method, params);
 }
 
 async function captureResponseBody(requestId) {
-  const e = recording.session.entries[requestId];
+  const e = currentEntry(recording, requestId);
   if (!e) return;
   try {
     const { body, base64Encoded } = await chrome.debugger.sendCommand(
