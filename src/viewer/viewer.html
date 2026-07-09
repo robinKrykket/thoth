@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Report · Thoth</title>
+    <link rel="stylesheet" href="../shared/styles.css" />
+  </head>
+  <body>
+    <div class="toolbar">
+      <a class="link" id="back" href="#">← All sessions</a>
+      <div class="toolbar-actions">
+        <button class="btn" id="narrate">✨ Summarize</button>
+        <button class="btn" id="export">Export .md + .json</button>
+        <button class="btn" id="show-folder" hidden>Show in folder</button>
+        <button class="btn" id="settings">⚙ Settings</button>
+      </div>
+    </div>
+
+    <main class="page" id="report">
+      <p class="muted">Loading report…</p>
+    </main>
+
+    <div id="toast" class="toast" hidden></div>
+
+    <script type="module" src="viewer.js"></script>
+  </body>
+</html>

@@ -1,0 +1,7 @@
+{
+  "name": "thoth",
+  "version": "0.2.0",
+  "description": "Thoth — a Chrome extension that records a session and produces a replayable report of the backend API calls.",
+  "private": true,
+  "type": "module"
+}

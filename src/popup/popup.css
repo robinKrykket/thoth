@@ -1,0 +1,88 @@
+/* popup.css — small launcher UI */
+:root {
+  color-scheme: light dark;
+  --fg: #1a1a1a;
+  --muted: #6b7280;
+  --border: #e2e5ea;
+  --bg: #ffffff;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --fg: #e8eaed;
+    --muted: #9aa0a6;
+    --border: #3c4043;
+    --bg: #202124;
+  }
+}
+
+body {
+  margin: 0;
+  font: 13px/1.5 system-ui, sans-serif;
+  color: var(--fg);
+  background: var(--bg);
+}
+.popup {
+  width: 260px;
+  padding: 14px;
+}
+h1 {
+  margin: 0 0 8px;
+  font-size: 14px;
+}
+.status {
+  margin: 0 0 12px;
+  padding: 6px 8px;
+  border-radius: 6px;
+  font-weight: 600;
+}
+.status.idle {
+  color: var(--muted);
+  background: color-mix(in srgb, var(--muted) 12%, transparent);
+}
+.status.recording {
+  color: #d33;
+  background: color-mix(in srgb, #d33 14%, transparent);
+}
+.btn {
+  display: block;
+  width: 100%;
+  margin-bottom: 8px;
+  padding: 9px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  background: var(--bg);
+  color: var(--fg);
+}
+.btn:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+.btn-record {
+  color: #fff;
+  background: #d33;
+  border-color: #d33;
+}
+.btn-stop {
+  color: #fff;
+  background: #1a1a1a;
+  border-color: #1a1a1a;
+}
+.btn-ghost {
+  color: var(--fg);
+}
+.error {
+  margin: 6px 0 0;
+  padding: 6px 8px;
+  border-radius: 6px;
+  color: #b00020;
+  background: color-mix(in srgb, #b00020 12%, transparent);
+  font-size: 12px;
+}
+.hint {
+  margin: 10px 0 0;
+  color: var(--muted);
+  font-size: 11px;
+}

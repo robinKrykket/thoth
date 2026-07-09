@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Settings · Thoth</title>
+    <link rel="stylesheet" href="../shared/styles.css" />
+  </head>
+  <body>
+    <main class="page" style="max-width: 620px">
+      <h1>Thoth settings</h1>
+      <p class="muted">Choose how the AI summary is generated. The structured report always works without any AI.</p>
+
+      <h2>AI summary provider</h2>
+
+      <label class="radio">
+        <input type="radio" name="provider" value="local" />
+        <span><strong>On-device (Gemini Nano)</strong> — private, nothing leaves your machine. Requires a recent Chrome with the built-in model enabled.</span>
+      </label>
+
+      <label class="radio">
+        <input type="radio" name="provider" value="remote" />
+        <span><strong>Claude API</strong> — higher-quality summaries. Sends a <em>redacted</em> digest (token names &amp; origins, never the secret values) to Anthropic.</span>
+      </label>
+
+      <div id="remote-config" class="remote-config">
+        <label class="field">
+          <span class="field-label">Anthropic API key</span>
+          <input type="password" id="api-key" placeholder="sk-ant-..." autocomplete="off" spellcheck="false" />
+        </label>
+        <label class="field">
+          <span class="field-label">Model</span>
+          <select id="model"></select>
+        </label>
+        <p class="muted small">
+          Stored locally in this browser only. Get a key at
+          <span class="mono">console.anthropic.com</span>.
+        </p>
+      </div>
+
+      <div class="actions">
+        <button class="btn btn-primary" id="save">Save</button>
+        <button class="btn" id="test">Test connection</button>
+        <span id="status" class="save-status"></span>
+      </div>
+    </main>
+
+    <script type="module" src="options.js"></script>
+  </body>
+</html>

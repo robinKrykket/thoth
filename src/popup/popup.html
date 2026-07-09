@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Thoth</title>
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body>
+    <div class="popup">
+      <h1>Thoth</h1>
+      <p id="status" class="status idle">Idle</p>
+
+      <button id="toggle" class="btn btn-record">● Record</button>
+      <button id="dashboard" class="btn btn-ghost">Open dashboard</button>
+
+      <p id="error" class="error" hidden></p>
+      <p class="hint">
+        Recording attaches the debugger to the current tab (you'll see a banner).
+        Click around, then Stop to generate the report.
+      </p>
+    </div>
+
+    <!-- type=module so we can import shared code; no inline JS (MV3 CSP). -->
+    <script type="module" src="popup.js"></script>
+  </body>
+</html>
