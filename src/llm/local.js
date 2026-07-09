@@ -69,7 +69,9 @@ export async function run(systemPrompt, userText, { onStatus } = {}) {
 
   try {
     onStatus && onStatus("Generating…");
-    return await session.prompt(userText);
+    // Some Chrome builds leave session.prompt() pending forever after the model
+    // downloads. Cap it so the UI fails clearly instead of hanging on "Generating…".
+    return await withTimeout(session.prompt(userText), PROMPT_TIMEOUT_MS);
   } finally {
     try {
       session.destroy && session.destroy();
@@ -77,6 +79,25 @@ export async function run(systemPrompt, userText, { onStatus } = {}) {
       /* best effort */
     }
   }
+}
+
+const PROMPT_TIMEOUT_MS = 90_000;
+
+function withTimeout(promise, ms) {
+  return Promise.race([
+    promise,
+    new Promise((_, reject) =>
+      setTimeout(
+        () =>
+          reject(
+            new Error(
+              `On-device model timed out after ${ms / 1000}s. Try again, or switch to Claude in Settings.`
+            )
+          ),
+        ms
+      )
+    ),
+  ]);
 }
 
 function normalize(value) {

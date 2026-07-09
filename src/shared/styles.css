@@ -307,6 +307,39 @@ pre {
   color: var(--amber);
 }
 
+/* full request list (the "all other requests" table) */
+.table-scroll {
+  overflow-x: auto;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+.reqtable {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12.5px;
+}
+.reqtable th {
+  text-align: left;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--border);
+  color: var(--muted);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  position: sticky;
+  top: 0;
+  background: var(--bg);
+}
+.reqtable td {
+  padding: 5px 10px;
+  border-bottom: 1px solid var(--border);
+  vertical-align: top;
+}
+.reqtable td.hval {
+  word-break: break-all;
+  font-family: ui-monospace, monospace;
+}
+
 /* code blocks */
 pre.body,
 pre.curl {

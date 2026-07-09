@@ -102,6 +102,7 @@ narrateBtn.addEventListener("click", async () => {
       } else {
         toast("Couldn't generate summary: " + (result.message || "unknown error"));
       }
+      reflectAiStatus(); // reset the label to a sensible resting state
       return;
     }
 
@@ -109,11 +110,15 @@ narrateBtn.addEventListener("click", async () => {
     currentSession.narrative = result.text;
     await saveSession(currentSession);
     draw();
+    // Explicit success confirmation (don't leave it on "Generating…").
+    narrateBtn.textContent = "✓ Generated";
   } catch (e) {
     toast("Summary failed: " + (e && e.message ? e.message : e));
+    reflectAiStatus();
   } finally {
+    // Only re-enable here — the label is set per-branch above so success
+    // stays on "✓ Generated" instead of being clobbered.
     narrateBtn.disabled = false;
-    reflectAiStatus(); // restore the correct label
   }
 });
 

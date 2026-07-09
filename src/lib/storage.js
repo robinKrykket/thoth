@@ -35,11 +35,24 @@ function openDb() {
   });
 }
 
-/** Small helper: wrap an IDBRequest in a Promise. */
+/** Wrap an IDBRequest (get/getAll/put/…) in a Promise. Requests fire onsuccess. */
 function promisify(request) {
   return new Promise((resolve, reject) => {
     request.onsuccess = () => resolve(request.result);
     request.onerror = () => reject(request.error);
+  });
+}
+
+/**
+ * Await a write TRANSACTION's completion. Transactions do NOT fire `onsuccess`
+ * (only requests do) — they fire `oncomplete` / `onerror` / `onabort`. Waiting
+ * on the wrong event here left saveSession hanging forever after the write.
+ */
+function txDone(tx) {
+  return new Promise((resolve, reject) => {
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+    tx.onabort = () => reject(tx.error);
   });
 }
 
@@ -48,7 +61,7 @@ export async function saveSession(session) {
   const db = await openDb();
   const tx = db.transaction(STORE, "readwrite");
   tx.objectStore(STORE).put(session);
-  await promisify(tx);
+  await txDone(tx);
   db.close();
   return session.id;
 }
@@ -88,6 +101,6 @@ export async function deleteSession(id) {
   const db = await openDb();
   const tx = db.transaction(STORE, "readwrite");
   tx.objectStore(STORE).delete(id);
-  await promisify(tx);
+  await txDone(tx);
   db.close();
 }

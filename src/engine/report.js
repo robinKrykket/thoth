@@ -11,7 +11,7 @@
 // projections of it, so there's no separate "markdown parser" to maintain.
 // ---------------------------------------------------------------------------
 
-import { apiCalls } from "./filter.js";
+import { apiCalls, typeBreakdown } from "./filter.js";
 import { classifyHeaders, mergedRequestHeaders } from "./headers.js";
 import { extractConsumedSecrets } from "./secrets.js";
 import { buildProvenance } from "./provenance.js";
@@ -62,6 +62,20 @@ export function buildReport(session) {
   const summary = { green: 0, amber: 0, red: 0 };
   for (const c of calls) summary[c.replayability.level]++;
 
+  // Everything NOT featured as an API call — listed in full so no request is
+  // ever hidden (static assets, page navigations, and anything unclassified).
+  const apiOrders = new Set(calls.map((c) => c.order));
+  const otherRequests = entries
+    .filter((e) => !apiOrders.has(e.order))
+    .map((e) => ({
+      order: e.order,
+      method: e.method || "GET",
+      url: e.url,
+      status: e.status ?? null,
+      type: e.type || "Other",
+      mimeType: e.mimeType || "",
+    }));
+
   return {
     meta: {
       id: session.id,
@@ -75,6 +89,8 @@ export function buildReport(session) {
     summary,
     auth,
     calls,
+    otherRequests,
+    typeCounts: typeBreakdown(entries),
   };
 }
 
@@ -96,7 +112,7 @@ function mask(value) {
 // ===========================================================================
 
 export function renderMarkdown(report, narrative) {
-  const { meta, summary, auth, calls } = report;
+  const { meta, summary, auth, calls, otherRequests = [], typeCounts = {} } = report;
   const out = [];
 
   out.push(`# API session report`);
@@ -104,6 +120,7 @@ export function renderMarkdown(report, narrative) {
   out.push(`- **Page:** ${meta.title || "(untitled)"} — ${meta.url}`);
   out.push(`- **Recorded:** ${new Date(meta.startedAt).toLocaleString()}`);
   out.push(`- **Captured:** ${meta.totalEntries} requests, ${meta.apiCallCount} API calls`);
+  out.push(`- **Request types:** ${typeCountsText(typeCounts)}`);
   out.push(
     `- **Replayability:** 🟢 ${summary.green} static · 🟡 ${summary.amber} session-bound · 🔴 ${summary.red} blocked`
   );
@@ -137,8 +154,12 @@ export function renderMarkdown(report, narrative) {
   }
 
   // --- Calls ---
-  out.push(`## API calls`);
+  out.push(`## API calls (${calls.length})`);
   out.push("");
+  if (calls.length === 0) {
+    out.push(`_No requests were classified as API calls. See "All other requests" below._`);
+    out.push("");
+  }
   calls.forEach((c, i) => {
     out.push(`### ${i + 1}. ${c.method} ${c.url}`);
     out.push(
@@ -170,7 +191,26 @@ export function renderMarkdown(report, narrative) {
     out.push("");
   });
 
+  // --- Everything else captured (assets, navigations, unclassified) ---
+  out.push(`## All other requests (${otherRequests.length})`);
+  out.push("");
+  if (otherRequests.length === 0) {
+    out.push(`_None._`);
+  } else {
+    for (const r of otherRequests) {
+      out.push(`- \`${r.method}\`${r.status != null ? ` [${r.status}]` : ""} _(${r.type})_ ${r.url}`);
+    }
+  }
+  out.push("");
+
   return out.join("\n");
+}
+
+/** "Fetch 12 · XHR 3 · Script 40 · Image 60 · Other 24" (most common first). */
+function typeCountsText(counts) {
+  const entries = Object.entries(counts).sort((a, b) => b[1] - a[1]);
+  if (!entries.length) return "(none)";
+  return entries.map(([t, n]) => `${t} ${n}`).join(" · ");
 }
 
 function originMd(origin) {
@@ -185,7 +225,7 @@ function originMd(origin) {
 // ===========================================================================
 
 export function renderHtml(report, narrative) {
-  const { meta, summary, auth, calls } = report;
+  const { meta, summary, auth, calls, otherRequests = [], typeCounts = {} } = report;
 
   const authHtml = auth.length
     ? auth
@@ -236,6 +276,7 @@ export function renderHtml(report, narrative) {
       <p class="muted">${esc(meta.url)}</p>
       <p class="muted">Recorded ${new Date(meta.startedAt).toLocaleString()} ·
         ${meta.totalEntries} requests · ${meta.apiCallCount} API calls</p>
+      <p class="muted">Captured types: ${typeBadgesHtml(typeCounts)}</p>
       <div class="tally">
         <span class="badge badge-green">🟢 ${summary.green} static</span>
         <span class="badge badge-amber">🟡 ${summary.amber} session-bound</span>
@@ -256,9 +297,36 @@ export function renderHtml(report, narrative) {
     ${auth.length ? `<p class="warn">⚠️ Values below are live secrets captured from your session.</p>` : ""}
     ${authHtml}
 
-    <h2>API calls</h2>
-    ${callsHtml || `<p class="muted">No API calls were captured.</p>`}
+    <h2>API calls (${calls.length})</h2>
+    ${callsHtml || `<p class="muted">Nothing was classified as an API call — see “All other requests” below for everything that was captured.</p>`}
+
+    <h2>All other requests (${otherRequests.length})</h2>
+    <p class="muted">Everything captured that wasn't featured above — static assets, page
+      navigations, and anything unclassified. Listed so no request is ever hidden.</p>
+    ${requestsTableHtml(otherRequests)}
   `;
+}
+
+/** Compact table of raw requests: Method · Status · Type · URL. */
+function requestsTableHtml(list) {
+  if (!list.length) return `<p class="muted">None.</p>`;
+  const rows = list
+    .map(
+      (r) =>
+        `<tr><td class="mono">${esc(r.method)}</td><td>${r.status ?? ""}</td>` +
+        `<td><span class="bucket">${esc(r.type)}</span></td><td class="hval">${esc(r.url)}</td></tr>`
+    )
+    .join("");
+  return `<div class="table-scroll"><table class="reqtable">
+      <thead><tr><th>Method</th><th>Status</th><th>Type</th><th>URL</th></tr></thead>
+      <tbody>${rows}</tbody></table></div>`;
+}
+
+/** Small badges of resource-type counts, most common first. */
+function typeBadgesHtml(counts) {
+  const entries = Object.entries(counts).sort((a, b) => b[1] - a[1]);
+  if (!entries.length) return "(none)";
+  return entries.map(([t, n]) => `<span class="bucket">${esc(t)} ${n}</span>`).join(" ");
 }
 
 function headersHtml(headers) {
