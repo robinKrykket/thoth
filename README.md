@@ -1,3 +1,5 @@
+<img width="1024" height="1024" alt="thoth_vec" src="https://github.com/user-attachments/assets/ae93d5af-1454-40ee-b6b4-2f7f1d8c3396" />
+
 # Thoth 🐒
 
 **See what a website does behind the scenes.** Thoth records the network traffic
@@ -86,3 +88,5 @@ Pick the engine in **⚙ Settings**:
 ---
 
 *Developers: the architecture and design decisions live in [`PLAN.md`](PLAN.md).*
+
+<img width="1803" height="1200" alt="94pwblzk4caf1" src="https://github.com/user-attachments/assets/82fbfa24-a769-4cc3-bc23-7ac2522900af" />
