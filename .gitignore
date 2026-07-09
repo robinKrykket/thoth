@@ -1,0 +1,10 @@
+# Claude Code local settings (machine-specific)
+.claude/
+
+# OS / editor cruft
+.DS_Store
+Thumbs.db
+*.swp
+
+# Node (not used by the extension, but safe to ignore)
+node_modules/
